@@ -1,107 +1,65 @@
-#
-# numerically solve FitzHugh-Nagumo equations on a 1D line with no flux boundaries
-#    dv/dt = r*v*(1-v/K)*(v/a-1) - b*w + I0 + D v_{xx}
-#    dw/dt = ep*(v-w)
-#
+rm(list=ls())
 
-# set parameters
-# --------------
-dt     = 0.05        # time step
-Nt     = 1500       # number of time steps
+# Parameters
+dt <- 0.05       # time step
+Nt <- 1500       # number of time steps
+Nx <- 100        # grid size (Nx x Nx)
+dx <- 1.0        # spatial step
+D <- 1.0         # diffusion coefficient for v
+p <- D * dt / dx^2  # diffusion factor
 
-dx     = 1.0        # space space
-Nx     = 100        # number of space steps
-D      = 1.0        # diffusion coefficient
-p      = D*dt/dx^2  # fraction jumping left and right one cell per time step
+# FHN model parameters
+r  <- 0.1        # rate parameter for v
+K  <- 1.0        # carrying capacity
+a  <- 0.1        # threshold parameter
+I0 <- 0          # external input
+b  <- 1          # coupling from w to v
+ep <- 0.005      # recovery rate for w
 
-r     = 0.1         # low v decay rate
-K     = 1.0         # carrying capacity
-a     = 0.1         # threshold
-v0    = 0.5         # initial condition at left edge
+tplot <- 20      # plot interval (time steps)
+framepause <- 0.1
 
-ep    = 0.005       # recovery rate (inverse time scale)
-b     = 1           # rate w lowers v
-I0    = 0           # input current
-
-tplot  = 20         # output time steps 
-framepause = 0.1  # time to pause between plots
-
-#  dv/dt = fv(v,w)
-#  dw/dt = fw(v,w)
-#
-fv=function(v,w) r*v*(1-v/K)*(v/a-1) - b*w + I0
-fw=function(v,w) ep*(v-w)
-
-# initialize storage for solution 
-#--------------------------------
-v   = numeric(Nx)
-w   = numeric(Nx)
-
-vnew = numeric(Nx)
-wnew = numeric(Nx)
-
-# time and space variables
-#
-t   = (0:Nt)*dt
-x  = ((1:Nx)-0.5)*dx
-
-
-# set initial conditions
-# ----------------------
-v   =matrix(0,Nx,Nx)
-vnew=matrix(0,Nx,Nx)
-v[1:10,1:10]=v0
-#v[1,1:Nx]=v0
-
-w    = matrix(0,Nx,Nx)
-wnew = matrix(0,Nx,Nx)
-
-# initilize matrix corresponding to the diffusion operator -- no flux conditions
-#
-Adiff = matrix(0,Nx,Nx)
-Adiff[1,1]   = -p
-Adiff[1,2]   =  p
-Adiff[Nx,Nx-1] =  p
-Adiff[Nx,Nx]   = -p
-
-for (j in 2:(Nx-1) ){
-
-  Adiff[j,j-1] =    p
-  Adiff[j,j  ] = -2*p
-  Adiff[j,j+1] =    p
+# Define model functions
+f_v <- function(v, w) {
+  r * v * (1 - v/K) * (v/a - 1) - b * w + I0
+}
+f_w <- function(v, w) {
+  ep * (v - w)
 }
 
+# Initialize state matrices
+v <- matrix(0, nrow = Nx, ncol = Nx)
+w <- matrix(0, nrow = Nx, ncol = Nx)
+v[1:10, 1:10] <- 0.5  # initial condition patch for v
 
-
-
-# run simulation
-# --------------
-
-for (n in 1:Nt){
-  
-  # update
-  #
-  vnew = v + fv(v,w) + (Adiff %*% v) + (v %*% Adiff)
-  wnew = w + fw(v,w)
-
-  # replace (v,w) with the new values
-  #
-  v=vnew
-  w=wnew
-  
-  
-  # make a plot of the solution
-  #
-  if(n %% tplot == 0) {
-  
-    image(v,zlim=c(-0.5,1.2),col=topo.colors(100),main=sprintf('time=%f',n*dt))
-    #persp(v,zlim=c(-0.5,1.2))
-
-    # pause
-    #
-    Sys.sleep(framepause)
-
+# Function to create a 1D diffusion matrix (for no-flux boundaries)
+create_diffusion_matrix <- function(N, p) {
+  A <- matrix(0, nrow = N, ncol = N)
+  for (i in 2:(N-1)) {
+    A[i, i-1] <- p
+    A[i, i]   <- -2 * p
+    A[i, i+1] <- p
   }
-  
-}  # end loop in time
+  A[1,1] <- -p; A[1,2] <- p
+  A[N,N-1] <- p; A[N,N] <- -p
+  A
+}
+A_diff <- create_diffusion_matrix(Nx, p)
 
+# Time evolution
+for (n in 1:Nt) {
+  # Compute diffusion in both dimensions: use separable Laplacian (A*v + v*A)
+  v_diff <- A_diff %*% v + v %*% A_diff
+  v_new <- v + dt * f_v(v, w) + v_diff
+  w_new <- w + dt * f_w(v, w)
+  
+  v <- v_new
+  w <- w_new
+  
+  if (n %% tplot == 0) {
+    image(v, col = topo.colors(100), zlim = c(-0.5, 1.2),
+          main = sprintf("FHN 2D: time = %.2f", n * dt),
+          xlab = "x", ylab = "y")
+    Sys.sleep(framepause)
+  }
+}
