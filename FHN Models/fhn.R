@@ -1,53 +1,39 @@
-#
-# numerically solve FitzHugh-Nagumo equations
-#    dv/dt = r*v*(1-v/K)*(v/a-1) - b*w + I0
-#    dw/dt = ep*(v-w)
-#
+rm(list=ls())
 
-# set parameters
-# --------------
-dt     = 0.1        # time step
-Nt     = 5000        # number of time steps
+# Parameters
+dt <- 0.1
+Nt <- 5000
+r  <- 0.1
+K  <- 1.0
+a  <- 0.1
+I0 <- 0.0
+b  <- 1
+ep <- 0.005
+v0 <- 0.05
 
-r     = 0.1         # low v decay rate
-K     = 1.0         # carrying capacity
-a     = 0.1         # threshold
-v0    = 0.05        # initial condition
+# Define functions
+f_v <- function(v, w) {
+  r * v * (1 - v/K) * (v/a - 1) - b * w + I0
+}
+f_w <- function(v, w) {
+  ep * (v - w)
+}
 
-ep    = 0.005        # recovery rate (inverse time scale)
-b     = 1           # rate w lowers v
-I0    = 0.0          # input current
+# Initialize vectors
+v <- numeric(Nt + 1)
+w <- numeric(Nt + 1)
+t <- seq(0, Nt * dt, by = dt)
+v[1] <- v0
+w[1] <- 0  # initial w
 
-#  dv/dt = fv(v,w)
-#  dw/dt = fw(v,w)
-#
-fv=function(v,w) r*v*(1-v/K)*(v/a-1) - b*w + I0
-fw=function(v,w) ep*(v-w)
+# Time evolution loop
+for (n in 1:Nt) {
+  v[n+1] <- v[n] + dt * f_v(v[n], w[n])
+  w[n+1] <- w[n] + dt * f_w(v[n], w[n])
+}
 
-# initialize storage for solution and time vector
-#--------------------------------
-v   = numeric(Nt+1)
-w   = numeric(Nt+1)
-t   = (0:Nt)*dt
-
-# set initial conditions
-# ----------------------
-v[1] = v0
-
-# run simulation
-# --------------
-
-for (n in 1:Nt){
-  
-  # update
-  #
-  v[n+1] = v[n] + dt*fv(v[n],w[n])
-  w[n+1] = w[n] + dt*fw(v[n],w[n])
-  
-}  # end loop in time
-
-# plot the solution
-#------------------
-plot(t,v,xlab='time',type='l',col='blue')
-lines(t,w,col='red')
-
+# Plot the time series
+plot(t, v, type = 'l', col = 'blue', lwd = 2,
+     xlab = "Time", ylab = "State", main = "FHN Model (Time Series)")
+lines(t, w, col = 'red', lwd = 2)
+legend("topright", legend = c("v", "w"), col = c("blue", "red"), lty = 1, lwd = 2)
